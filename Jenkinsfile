@@ -1,41 +1,42 @@
 pipeline {
     agent any
-    tools{
-        maven 'maven_3_5_0'
-    }
-    stages{
-        stage('Build Maven'){
-            steps{
-                checkout([$class: 'GitSCM', branches: [[name: '*/main']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/Java-Techie-jt/devops-automation']]])
-                sh 'mvn clean install'
-            }
-        }
-        stage('Build docker image'){
-            steps{
-                script{
-                    sh 'docker build -t javatechie/devops-integration .'
-                }
-            }
-        }
-        stage('Push image to Hub'){
-            steps{
-                script{
-                   withCredentials([string(credentialsId: 'dockerhub-pwd', variable: 'dockerhubpwd')]) {
-                   sh 'docker login -u javatechie -p ${dockerhubpwd}'
 
-}
-                   sh 'docker push javatechie/devops-integration'
+    stages {
+        stage('Build Artifact') {
+            steps {
+                sh "mvn clean package -DskipTests=true"
+                archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+            }
+        }
+
+        stage('Unit Tests - JUnit and Jacoco') {
+            steps {
+                sh "mvn test"
+            }
+            post {
+                always {
+                    junit 'target/surefire-reports/*.xml'
+                    jacoco(execPattern: 'target/jacoco.exec')
                 }
             }
         }
-        stage('Deploy to k8s'){
-            steps{
-                script{
-                    kubernetesDeploy (configs: 'deploymentservice.yaml',kubeconfigId: 'k8sconfigpwd')
-                }
+
+        stage('Print Environment Variables') {
+            steps {
+                sh 'printenv'
+            }
+        }
+
+        stage('Docker Build') {
+            steps {
+                sh "docker build -t yasiru1997/hub-docker-hub-3:${GIT_COMMIT} ."
+            }
+        }
+
+        stage('Docker Push') {
+            steps {
+                sh "docker push yasiru1997/hub-docker-hub-3:${GIT_COMMIT}"//test_hub
             }
         }
     }
 }
-
-//build 1
